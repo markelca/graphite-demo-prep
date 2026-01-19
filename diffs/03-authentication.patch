@@ -1,0 +1,65 @@
+diff --git a/src/middleware/auth.js b/src/middleware/auth.js
+new file mode 100644
+index 0000000..6789012
+--- /dev/null
++++ b/src/middleware/auth.js
+@@ -0,0 +1,21 @@
++const { store } = require('../data/store');
++
++// Simple token-based auth (for demo purposes)
++// In production, use JWT or proper session management
++const tokens = new Map();
++
++function authMiddleware(req, res, next) {
++  const token = req.headers.authorization?.replace('Bearer ', '');
++
++  if (!token || !tokens.has(token)) {
++    return res.status(401).json({ error: 'Unauthorized' });
++  }
++
++  req.user = tokens.get(token);
++  next();
++}
++
++function setToken(token, user) {
++  tokens.set(token, user);
++}
++module.exports = { authMiddleware, setToken };
+diff --git a/src/index.js b/src/index.js
+index 5678901..7890123 100644
+--- a/src/index.js
++++ b/src/index.js
+@@ -2,6 +2,8 @@ const express = require('express');
+ const healthRoutes = require('./routes/health');
+ const userRoutes = require('./routes/users');
+ const taskRoutes = require('./routes/tasks');
++const { authMiddleware, setToken } = require('./middleware/auth');
++const { store } = require('./data/store');
+
+ const app = express();
+ const PORT = process.env.PORT || 3000;
+@@ -11,7 +13,23 @@ app.use(express.json());
+ // Routes
+ app.use('/health', healthRoutes);
+ app.use('/users', userRoutes);
+-app.use('/tasks', taskRoutes);
++app.use('/tasks', authMiddleware, taskRoutes);
++
++// Login endpoint
++app.post('/login', (req, res) => {
++  const { email } = req.body;
++  const user = store.users.find(u => u.email === email);
++
++  if (!user) {
++    return res.status(401).json({ error: 'Invalid credentials' });
++  }
++
++  // Generate simple token (for demo only)
++  const token = Buffer.from(`${user.id}:${Date.now()}`).toString('base64');
++  setToken(token, user);
++
++  res.json({ token, user });
++});
+
+ app.listen(PORT, () => {
+   console.log(`Server running on http://localhost:${PORT}`);
